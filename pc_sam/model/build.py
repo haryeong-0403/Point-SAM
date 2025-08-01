@@ -10,7 +10,7 @@ from .encoder.pc_encoder import PointCloudEncoder
 from .encoder.prompt_encoder import PromptEncoder
 from .decoder.mask_decoder_trm import MaskDecoder
 from .transformer import TwoWayTransformer
-from .pc_sam import PointCloudSAM
+from .pc_sam_250715 import PointCloudSAM
 
 
 def fn(module: nn.Module):

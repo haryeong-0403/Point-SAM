@@ -8,7 +8,7 @@ import torch
 import os
 import numpy as np
 import argparse
-from pc_sam.model.pc_sam import PointCloudSAM
+from pc_sam.model.pc_sam_250715 import PointCloudSAM
 from pc_sam.utils.torch_utils import replace_with_fused_layernorm
 from pc_sam.model.loss import compute_iou
 from safetensors.torch import load_model

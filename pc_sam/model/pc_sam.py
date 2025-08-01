@@ -4,6 +4,8 @@ References:
 - https://github.com/facebookresearch/segment-anything/blob/6fdee8f2727f4506cfbbe553e23b895e27956588/segment_anything/modeling/sam.py
 """
 
+# Original pc_sam codes
+
 from typing import Dict, List
 
 import torch
@@ -33,6 +35,25 @@ class PointCloudSAM(nn.Module):
         self.mask_decoder = mask_decoder
         self.prompt_iters = prompt_iters
         self.enable_mask_refinement_iterations = enable_mask_refinement_iterations
+
+    def inference(self, coords, colors):
+        B, N, _ = coords.shape
+        device = coords.device
+
+        # dummy mask 생성 (원래 학습 시 mask가 필요했기 때문)
+        dummy_gt_masks = torch.zeros((B,1,N), dtype=torch.long, device=device)
+
+        # normalize coords
+        coords = coords - coords.mean(dim=1, keepdim=True)
+        coords = coords / coords.norm(dim=2, keepdim=True).max()
+
+        # normalize colors
+        colors = colors / 255.0
+
+        # 실제 forward 호출 (is_eval=True 설정 중요)
+        outputs = self.forward(coords, colors, dummy_gt_masks, is_eval=True)
+
+        return outputs
 
     def predict_masks(
         self,

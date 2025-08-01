@@ -25,14 +25,14 @@ def worker_init_fn(worker_id: int, rank: int = 0):
     random.seed(stdlib_seed)
 
 
-def replace_with_fused_layernorm(module: nn.Module):
-    # https://github.com/huggingface/pytorch-image-models/pull/1674/files
-    from apex.normalization import FusedLayerNorm
+# def replace_with_fused_layernorm(module: nn.Module):
+#     # https://github.com/huggingface/pytorch-image-models/pull/1674/files
+#     from apex.normalization import FusedLayerNorm
 
-    for name, child in module.named_children():
-        if isinstance(child, nn.LayerNorm):
-            # "memory_efficient" option can not be used for training as it will modify variables in-place.
-            fused_layernorm = FusedLayerNorm(
-                child.normalized_shape, child.eps, child.elementwise_affine
-            )
-            module.register_module(name, fused_layernorm)
+#     for name, child in module.named_children():
+#         if isinstance(child, nn.LayerNorm):
+#             # "memory_efficient" option can not be used for training as it will modify variables in-place.
+#             fused_layernorm = FusedLayerNorm(
+#                 child.normalized_shape, child.eps, child.elementwise_affine
+#             )
+#             module.register_module(name, fused_layernorm)

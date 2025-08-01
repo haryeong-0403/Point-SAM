@@ -18,7 +18,7 @@ from torch.utils.data import ConcatDataset, DataLoader
 import wandb
 from pc_sam.datasets.transforms import Compose
 from pc_sam.model.loss import compute_iou
-from pc_sam.model.pc_sam import PointCloudSAM
+from pc_sam.model.pc_sam_250715 import PointCloudSAM
 from pc_sam.utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 

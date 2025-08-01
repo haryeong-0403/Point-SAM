@@ -9,7 +9,7 @@ import argparse
 import hydra
 from omegaconf import OmegaConf
 from accelerate.utils import set_seed, tqdm
-from pc_sam.model.pc_sam import PointCloudSAM
+from pc_sam.model.pc_sam_250715 import PointCloudSAM
 from pc_sam.utils.torch_utils import replace_with_fused_layernorm
 from pc_sam.model.loss import compute_iou
 from safetensors.torch import load_model

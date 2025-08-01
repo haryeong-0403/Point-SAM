@@ -10,15 +10,7 @@ from torkit3d.ops.chamfer_distance import chamfer_distance
 
 
 def fps(points: torch.Tensor, num_samples: int):
-    """A wrapper of farthest point sampling (FPS).
 
-    Args:
-        points: [B, N, 3]. Input point clouds.
-        num_samples: int. The number of points to sample.
-
-    Returns:
-        torch.Tensor: [B, num_samples, 3]. Sampled points.
-    """
     idx = sample_farthest_points(points, num_samples)
     sampled_points = batch_index_select(points, idx, dim=1)
     return sampled_points
@@ -31,19 +23,7 @@ def knn_points(
     sorted: bool = False,
     transpose: bool = False,
 ):
-    """Compute k nearest neighbors.
 
-    Args:
-        query: [B, N1, D], query points. [B, D, N1] if @transpose is True.
-        key:  [B, N2, D], key points. [B, D, N2] if @transpose is True.
-        k: the number of nearest neighbors.
-        sorted: whether to sort the results
-        transpose: whether to transpose the last two dimensions.
-
-    Returns:
-        torch.Tensor: [B, N1, K], distances to the k nearest neighbors in the key.
-        torch.Tensor: [B, N1, K], indices of the k nearest neighbors in the key.
-    """
     if transpose:
         query = query.transpose(1, 2)
         key = key.transpose(1, 2)
@@ -57,11 +37,6 @@ def knn_points(
 
 
 class KNNGrouper(nn.Module):
-    """Group points based on K nearest neighbors.
-
-    A number of points are sampled as centers by farthest point sampling (FPS).
-    Each group is formed by the center and its k nearest neighbors.
-    """
 
     def __init__(self, num_groups, group_size, radius=None, centralize_features=False):
         super().__init__()
@@ -71,20 +46,7 @@ class KNNGrouper(nn.Module):
         self.centralize_features = centralize_features
 
     def forward(self, xyz: torch.Tensor, features: torch.Tensor, use_fps=True):
-        """
-        Args:
-            xyz: [B, N, 3]. Input point clouds.
-            features: [B, N, C]. Point features.
-            use_fps: bool. Whether to use farthest point sampling.
-                If not, `xyz` should already be sampled by FPS.
 
-        Returns:
-            dict: {
-                features: [B, G, K, 3 + C]. Group features.
-                centers: [B, G, 3]. Group centers.
-                knn_idx: [B, G, K]. The indices of k nearest neighbors.
-            }
-        """
         batch_size, num_points, _ = xyz.shape
         with torch.no_grad():
             if use_fps:
@@ -132,17 +94,7 @@ def group_with_centers_and_knn(
     centralize_features: bool = False,
     center_idx: torch.Tensor = None,
 ):
-    """Group points based on K nearest neighbors.
 
-    Args:
-        xyz: [B, N, 3]. Input point clouds.
-        features: [B * M, N, C]. Point features. Support multiple features for the same point cloud.
-        centers: [B, L, 3]. Group centers.
-        knn_idx: [B, L, K]. The indices of k nearest neighbors.
-
-    Returns:
-        torch.Tensor: [B * M, L, K, 3 + C]. Group features.
-    """
     assert xyz.dim() == features.dim(), (xyz.shape, features.shape)
     assert xyz.shape[1] == features.shape[1], (xyz.shape, features.shape)
     assert xyz.shape[0] == centers.shape[0] == knn_idx.shape[0]
@@ -188,7 +140,6 @@ def group_with_centers_and_knn(
 
 
 class NNGrouper(nn.Module):
-    """Group points based on the nearest neighbors."""
 
     def __init__(self, num_groups: int):
         super().__init__()
@@ -472,6 +423,35 @@ def sample_furthest_points_from_border(
     center_label = gt[fg_inds][center_idx]
 
     return center_coords[None, ...], center_label[None, ...], center_dist
+    
+def farthest_point_sampling(xyz: torch.Tensor, n_samples: int) -> torch.Tensor:
+    B, N, _ = xyz.shape
+    device = xyz.device
+    centroids = torch.zeros(B, n_samples, dtype=torch.long, device=device)
+    distance = torch.ones(B, N, device=device) * 1e10
+    farthest = torch.randint(0, N, (B,), dtype=torch.long, device=device)
+    batch_indices = torch.arange(B, dtype=torch.long, device=device)
+
+    for i in range(n_samples):
+        centroids[:, i] = farthest
+        centroid = xyz[batch_indices, farthest, :].view(B, 1, 3)
+        dist = torch.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = torch.max(distance, -1)[1]
+    return centroids
+
+def sample_prompts_adapter(coords, gt_masks=None, pred_masks=None, is_eval=False):
+    # inference 모드일 때만 자동 프롬프트 생성
+    B, N, _ = coords.shape
+    num_prompt_points = 8  # 필요한 만큼 조절 가능
+    indices = farthest_point_sampling(coords, num_prompt_points)  # [B, K]
+
+    batch_idx = torch.arange(B, device=coords.device).view(B, 1).repeat(1, num_prompt_points)
+    prompt_coords = coords[batch_idx, indices]  # [B, K, 3]
+    prompt_labels = torch.ones(B, num_prompt_points, dtype=torch.bool, device=coords.device)  # foreground로 모두 설정
+
+    return prompt_coords, prompt_labels
 
 
 class PatchEncoder(nn.Module):
@@ -497,12 +477,14 @@ class PatchEncoder(nn.Module):
         )
 
     def forward(self, point_patches: torch.Tensor):
+
         # point_patches: [B, L, K, C_in]
         x = self.conv1(point_patches)
         y = torch.max(x, dim=-2, keepdim=True).values
         x = torch.cat([y.expand_as(x), x], dim=-1)
         x = self.conv2(x)  # [B, L, K, C_out]
         y = torch.max(x, dim=-2).values  # [B, L, C_out]
+
         return y
     
 class PatchEncoderNN(nn.Module):
@@ -533,3 +515,5 @@ class PatchEncoderNN(nn.Module):
         y = torch.zeros([x.shape[0], center_number, x.shape[-1]], device=x.device, dtype=x.dtype)
         y = torch.scatter_reduce(y, 1, nn_idx, x, "max")
         return y
+
+  
