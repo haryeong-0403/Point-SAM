@@ -1,3 +1,0 @@
-defaults:
-  - partnet@dataset_dict.partnet
-  - shapenet@dataset_dict.shapenet
